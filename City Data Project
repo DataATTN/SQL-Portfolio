@@ -1,0 +1,92 @@
+# For this project, I downloaded public datasets made available via the city of Chicago's Data Portal.
+# Then I stored the datasets in database tables using a SQLite database.
+# Finally, I performed analytics on the data using SQL.
+
+# Store the datasets in database tables
+
+%load_ext sql
+
+import csv, sqlite3
+
+con = sqlite3.connect("FinalDB.db")
+cur = con.cursor()
+
+!pip install -q pandas==1.1.5
+
+import pandas
+df = pandas.read_csv('https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBMDeveloperSkillsNetwork-DB0201EN-SkillsNetwork/labs/FinalModule_Coursera_V5/data/ChicagoCensusData.csv?utm_medium=Exinfluencer&utm_source=Exinfluencer&utm_content=000026UJ&utm_term=10006555&utm_id=NA-SkillsNetwork-Channel-SkillsNetworkCoursesIBMDeveloperSkillsNetworkDB0201ENSkillsNetwork20127838-2021-01-01')
+df.to_sql("CENSUS_DATA", con, if_exists='replace', index=False,method="multi")
+
+df = pandas.read_csv('https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBMDeveloperSkillsNetwork-DB0201EN-SkillsNetwork/labs/FinalModule_Coursera_V5/data/ChicagoPublicSchools.csv?utm_medium=Exinfluencer&utm_source=Exinfluencer&utm_content=000026UJ&utm_term=10006555&utm_id=NA-SkillsNetwork-Channel-SkillsNetworkCoursesIBMDeveloperSkillsNetworkDB0201ENSkillsNetwork20127838-2021-01-01')
+df.to_sql("CHICAGO_PUBLIC_SCHOOLS", con, if_exists='replace', index=False,method="multi")
+
+df = pandas.read_csv('https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBMDeveloperSkillsNetwork-DB0201EN-SkillsNetwork/labs/FinalModule_Coursera_V5/data/ChicagoCrimeData.csv?utm_medium=Exinfluencer&utm_source=Exinfluencer&utm_content=000026UJ&utm_term=10006555&utm_id=NA-SkillsNetwork-Channel-SkillsNetworkCoursesIBMDeveloperSkillsNetworkDB0201ENSkillsNetwork20127838-2021-01-01')
+df.to_sql("CHICAGO_CRIME_DATA", con, if_exists='replace', index=False,method="multi")
+
+%sql sqlite:///FinalDB.db
+
+# Find the total number of crimes recorded in the CRIME table.
+
+%sql SELECT COUNT(*) FROM CHICAGO_CRIME_DATA;
+
+# List community areas with per capita income less than 11000.
+
+%sql SELECT COMMUNITY_AREA_NUMBER, COMMUNITY_AREA_NAME, PER_CAPITA_INCOME FROM CENSUS_DATA WHERE PER_CAPITA_INCOME <= 11000;
+
+# List all case numbers for crimes involving minors?(children are not considered minors for the purposes of crime analysis)
+
+%sql SELECT DISTINCT CASE_NUMBER FROM CHICAGO_CRIME_DATA WHERE DESCRIPTION LIKE '%MINOR%'
+
+# List all kidnapping crimes involving a child?
+
+%%sql 
+SELECT CASE_NUMBER, PRIMARY_TYPE, DESCRIPTION
+FROM CHICAGO_CRIME_DATA
+WHERE  PRIMARY_TYPE LIKE '%KIDNAPPING%'
+AND DESCRIPTION LIKE '%CHILD%';
+
+# What kinds of crimes were recorded at schools?
+
+%%sql 
+SELECT DISTINCT PRIMARY_TYPE AS CRIMES
+FROM CHICAGO_CRIME_DATA
+WHERE LOCATION_DESCRIPTION LIKE '%SCHOOL%';
+
+# List the average safety score for each type of school.
+
+%%sql 
+SELECT "Elementary, Middle, or High School" ,  AVG(SAFETY_SCORE)  
+FROM CHICAGO_PUBLIC_SCHOOLS
+GROUP BY "Elementary, Middle, or High School";
+
+# List 5 community areas with highest % of households below poverty line.
+
+%%sql 
+SELECT COMMUNITY_AREA_NUMBER, COMMUNITY_AREA_NAME, PERCENT_HOUSEHOLDS_BELOW_POVERTY
+FROM CENSUS_DATA 
+ORDER BY PERCENT_HOUSEHOLDS_BELOW_POVERTY DESC  
+LIMIT 5;
+
+# Which community area is most crime prone?
+
+%%sql
+SELECT COMMUNITY_AREA_NUMBER, COUNT(COMMUNITY_AREA_NUMBER) AS NUMBER_OF_CRIMES
+FROM CHICAGO_CRIME_DATA 
+GROUP BY COMMUNITY_AREA_NUMBER
+ORDER BY COUNT(COMMUNITY_AREA_NUMBER) DESC
+LIMIT 1;
+
+# Use a sub-query to find the name of the community area with highest hardship index
+
+%sql SELECT COMMUNITY_AREA_NAME FROM CENSUS_DATA WHERE HARDSHIP_INDEX = (SELECT MAX(HARDSHIP_INDEX) FROM CENSUS_DATA);
+
+# Use a sub-query to determine the Community Area Name with most number of crimes?
+
+%%sql
+SELECT COMMUNITY_AREA_NAME FROM CENSUS_DATA 
+WHERE COMMUNITY_AREA_NUMBER = (SELECT COMMUNITY_AREA_NUMBER FROM CHICAGO_CRIME_DATA 
+    GROUP BY COMMUNITY_AREA_NUMBER
+    ORDER BY COUNT(COMMUNITY_AREA_NUMBER) DESC
+    LIMIT 1)
+LIMIT 1;
+
